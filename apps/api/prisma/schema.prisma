@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String             @id @default(uuid())
+  googleId    String             @unique
+  email       String             @unique
+  name        String
+  avatarUrl   String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  memberships TenantMembership[]
+}
+
+model Tenant {
+  id                         String                      @id @default(uuid())
+  name                       String
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @updatedAt
+  memberships                TenantMembership[]
+  senders                    EmailSender[]
+  campaigns                  Campaign[]
+  emailJobs                  EmailJob[]
+  slackConnection            SlackConnection?
+  outboxEvents               OutboxEvent[]
+  notificationDeduplications NotificationDeduplication[]
+}
+
+model TenantMembership {
+  id        String   @id @default(uuid())
+  tenantId  String
+  userId    String
+  role      String   @default("OWNER") // OWNER, ADMIN, MEMBER
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+}
+
+model EmailSender {
+  id             String     @id @default(uuid())
+  tenantId       String
+  senderEmail    String
+  displayName    String
+  providerConfig Json?
+  isActive       Boolean    @default(true)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  tenant         Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  emailJobs      EmailJob[]
+
+  @@unique([tenantId, senderEmail])
+}
+
+model Campaign {
+  id          String     @id @default(uuid())
+  tenantId    String
+  name        String
+  subject     String
+  body        String     @db.Text
+  startTime   DateTime
+  minDelayMs  Int        @default(2000)
+  hourlyLimit Int        @default(100)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  tenant      Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  emailJobs   EmailJob[]
+}
+
+model EmailJob {
+  id             String    @id @default(uuid())
+  tenantId       String
+  campaignId     String?
+  senderId       String
+  recipientEmail String
+  subject        String
+  body           String    @db.Text
+  scheduledTime  DateTime
+  sentAt         DateTime?
+  status         String    @default("SCHEDULED") // SCHEDULED, QUEUED, PROCESSING, SENT, FAILED, CANCELLED, RETRYING, DELIVERY_UNKNOWN
+  attemptCount   Int       @default(0)
+  bullmqJobId    String?   @unique
+  lastError      String?   @db.Text
+  idempotencyKey String?
+  smtpPreviewUrl String?
+  correlationId  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campaign       Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  sender         EmailSender @relation(fields: [senderId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, status])
+  @@index([tenantId, scheduledTime])
+  @@index([senderId, scheduledTime])
+  @@index([tenantId, recipientEmail])
+  @@unique([tenantId, idempotencyKey])
+}
+
+model OutboxEvent {
+  id            String    @id @default(uuid())
+  tenantId      String
+  aggregateType String    // EMAIL_JOB, SEARCH_INDEX, SLACK_ALERT
+  aggregateId   String
+  eventType     String    // SCHEDULED, STATUS_UPDATED, RATE_LIMIT_HIT
+  payload       Json
+  status        String    @default("PENDING") // PENDING, PROCESSED, FAILED
+  retries       Int       @default(0)
+  lastError     String?   @db.Text
+  createdAt     DateTime  @default(now())
+  processedAt   DateTime?
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+}
+
+model SlackConnection {
+  id                 String   @id @default(uuid())
+  tenantId           String   @unique
+  encryptedToken     String   @db.Text
+  teamId             String
+  teamName           String
+  channelId          String?
+  channelName        String?
+  incomingWebhookUrl String?
+  status             String   @default("CONNECTED") // CONNECTED, DISCONNECTED
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model NotificationDeduplication {
+  id          String   @id @default(uuid())
+  tenantId    String
+  dedupeKey   String
+  eventType   String
+  windowStart DateTime
+  createdAt   DateTime @default(now())
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, dedupeKey, windowStart])
+}
