@@ -114,51 +114,52 @@ A complete, production-ready full-stack cold email job scheduler designed and bu
 
 ---
 
-## Monorepo Directory Layout
+## Project Directory Layout
 
 ```text
 reachinbox-scheduler/
-├── apps/
-│   ├── api/                           # Backend Express API & BullMQ Worker
-│   │   ├── prisma/
-│   │   │   ├── schema.prisma          # PostgreSQL relational schema
-│   │   │   └── seed.ts                # Seeder for demo tenant, user & senders
-│   │   ├── src/
-│   │   │   ├── config/                # Zod env, logger, db & redis clients, swagger
-│   │   │   ├── middleware/            # Auth, request-logger, validator, error handler
-│   │   │   ├── modules/
-│   │   │   │   ├── auth/              # Google OAuth, dev-login, me, logout
-│   │   │   │   ├── senders/           # Senders CRUD & tenant isolation
-│   │   │   │   ├── campaigns/         # Email campaigns
-│   │   │   │   ├── emails/            # Scheduling, lead parser, cancel, metrics
-│   │   │   │   ├── notifications/     # Slack OAuth & deduplicated alerts
-│   │   │   │   ├── search/            # Elasticsearch & Postgres dual engine
-│   │   │   │   └── queue-board.ts     # Bull Board UI router
-│   │   │   ├── queue/                 # BullMQ queue & Redis Lua rate limiter
-│   │   │   ├── workers/               # Background email worker & reconciliation
-│   │   │   ├── integrations/          # Ethereal SMTP, Google OAuth, Slack API
-│   │   │   ├── utils/                 # AES-256-GCM crypto & timing utilities
-│   │   │   ├── app.ts                 # Express application definition
-│   │   │   └── server.ts              # API server bootstrap
-│   │   ├── tests/                     # Vitest automated backend test suites
-│   │   └── package.json
-│   └── web/                           # Frontend React SPA
-│       ├── src/
-│       │   ├── api/                   # Typed API clients (Auth, Emails, Senders, Slack)
-│       │   ├── components/            # Reusable UI (Buttons, Badges, Cards, Modals, Skeleton)
-│       │   ├── context/               # AuthContext & ToastContext
-│       │   ├── pages/                 # Login, Dashboard, Scheduled, Sent, Campaigns, Slack
-│       │   ├── test/                  # Vitest & React Testing Library test suites
-│       │   ├── App.tsx                # App routing & query provider
-│       │   └── main.tsx
-│       └── package.json
-├── docker-compose.yml                 # Multi-container orchestration (Postgres, Redis, ES)
-├── scripts/
-│   ├── start-local-services.sh        # Starts userspace PostgreSQL and Redis services
-│   └── stop-local-services.sh         # Gracefully terminates local services
+├── backend/                           # Backend Express API, BullMQ Worker & Services
+│   ├── prisma/
+│   │   ├── schema.prisma              # PostgreSQL relational schema
+│   │   └── seed.ts                    # Seeder for demo tenant, user & senders
+│   ├── src/
+│   │   ├── config/                    # Zod env, logger, db & redis clients, swagger
+│   │   ├── middleware/                # Auth, request-logger, validator, error handler
+│   │   ├── modules/
+│   │   │   ├── auth/                  # Google OAuth, dev-login, me, logout
+│   │   │   ├── senders/               # Senders CRUD & tenant isolation
+│   │   │   ├── campaigns/             # Email campaigns
+│   │   │   ├── emails/                # Scheduling, lead parser, cancel, metrics
+│   │   │   ├── notifications/         # Slack OAuth & deduplicated alerts
+│   │   │   ├── search/                # Elasticsearch & Postgres dual engine
+│   │   │   └── queue-board.ts         # Bull Board UI router
+│   │   ├── queue/                     # BullMQ queue & Redis Lua rate limiter
+│   │   ├── workers/                   # Background email worker & reconciliation
+│   │   ├── integrations/              # Ethereal SMTP, Google OAuth, Slack API
+│   │   ├── utils/                     # AES-256-GCM crypto & timing utilities
+│   │   ├── app.ts                     # Express application definition
+│   │   └── server.ts                  # API server bootstrap
+│   ├── tests/                         # Vitest automated backend test suites
+│   ├── scripts/                       # Local services scripts (start/stop)
+│   ├── tools/                         # Local database utilities (PostgreSQL & Redis)
+│   ├── data/                          # Local PostgreSQL & Redis storage
+│   ├── docker-compose.yml             # Docker services orchestration
+│   ├── .env                           # Environment configuration
+│   └── package.json
+├── frontend/                          # Frontend React SPA
+│   ├── src/
+│   │   ├── api/                       # Typed API clients (Auth, Emails, Senders, Slack)
+│   │   ├── components/                # Reusable UI (Buttons, Badges, Cards, Modals, Skeleton)
+│   │   ├── context/                   # AuthContext & ToastContext
+│   │   ├── pages/                     # Login, Dashboard, Scheduled, Sent, Campaigns, Slack
+│   │   ├── test/                      # Vitest & React Testing Library test suites
+│   │   ├── App.tsx                    # App routing & query provider
+│   │   └── main.tsx
+│   ├── index.html
+│   └── package.json
 ├── .env.example                       # Full configuration reference
 ├── IMPLEMENTATION_PLAN.md             # Execution phases & verification matrix
-└── package.json                       # Monorepo workspaces configuration
+└── package.json                       # Root workspaces configuration
 ```
 
 ---
@@ -226,7 +227,7 @@ npm run dev:web
 
 ## Distributed Rate Limiting & Scheduling Algorithm
 
-Rate limiting in ReachInbox is enforced using an atomic Redis Lua script (`apps/api/src/queue/rate-limiter.ts`), eliminating race conditions across multiple distributed worker threads:
+Rate limiting in ReachInbox is enforced using an atomic Redis Lua script (`backend/src/queue/rate-limiter.ts`), eliminating race conditions across multiple distributed worker threads:
 
 ```lua
 -- Keys:
@@ -307,15 +308,15 @@ npm run test
 
 | Test Suite | File | Tests | Status |
 | :--- | :--- | :---: | :---: |
-| **API End-to-End Integration** | `apps/api/tests/api-integration.test.ts` | 8 |  PASSED |
-| **Distributed Rate Limiter** | `apps/api/tests/rate-limiter.test.ts` | 3 |  PASSED |
-| **Lead CSV & Syntax Parser** | `apps/api/tests/lead-parser.test.ts` | 3 |  PASSED |
-| **Restart Recovery & Outbox** | `apps/api/tests/resilience-recovery.test.ts` | 3 |  PASSED |
-| **Live Nodemailer Ethereal SMTP** | `apps/api/tests/live-delivery.test.ts` | 1 |  PASSED |
-| **AES-256-GCM & HMAC Crypto** | `apps/api/tests/crypto.test.ts` | 3 |  PASSED |
-| **Frontend UI: Button Component** | `apps/web/src/test/Button.test.tsx` | 3 |  PASSED |
-| **Frontend UI: Card Component** | `apps/web/src/test/Card.test.tsx` | 2 |  PASSED |
-| **Frontend UI: Badge Component** | `apps/web/src/test/Badge.test.tsx` | 2 |  PASSED |
+| **API End-to-End Integration** | `backend/tests/api-integration.test.ts` | 8 |  PASSED |
+| **Distributed Rate Limiter** | `backend/tests/rate-limiter.test.ts` | 3 |  PASSED |
+| **Lead CSV & Syntax Parser** | `backend/tests/lead-parser.test.ts` | 3 |  PASSED |
+| **Restart Recovery & Outbox** | `backend/tests/resilience-recovery.test.ts` | 3 |  PASSED |
+| **Live Nodemailer Ethereal SMTP** | `backend/tests/live-delivery.test.ts` | 1 |  PASSED |
+| **AES-256-GCM & HMAC Crypto** | `backend/tests/crypto.test.ts` | 3 |  PASSED |
+| **Frontend UI: Button Component** | `frontend/src/test/Button.test.tsx` | 3 |  PASSED |
+| **Frontend UI: Card Component** | `frontend/src/test/Card.test.tsx` | 2 |  PASSED |
+| **Frontend UI: Badge Component** | `frontend/src/test/Badge.test.tsx` | 2 |  PASSED |
 | **Total** | **9 Test Files** | **28 Tests** | ** 100% PASS** |
 
 ---

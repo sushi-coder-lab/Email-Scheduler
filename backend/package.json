@@ -14,7 +14,9 @@
     "lint": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma db push",
-    "prisma:seed": "tsx prisma/seed.ts"
+    "prisma:seed": "tsx prisma/seed.ts",
+    "services:start": "bash ./scripts/start-local-services.sh",
+    "services:stop": "bash ./scripts/stop-local-services.sh"
   },
   "dependencies": {
     "@bull-board/api": "^5.17.1",
